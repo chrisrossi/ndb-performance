@@ -58,8 +58,8 @@ In the shell you're using to run the app::
 
 Run tests as before.
 
-Deploy test app to App Engine with python37 environment
--------------------------------------------------------
+Deploy test app to App Engine with python37 runtime
+---------------------------------------------------
 
 ::
 
@@ -68,8 +68,8 @@ Deploy test app to App Engine with python37 environment
     $ gcloud app deploy
 
 
-Deploy test app to App Engine with python27 environment
--------------------------------------------------------
+Deploy test app to App Engine with python27 runtime
+---------------------------------------------------
 
 ::
 
@@ -84,7 +84,7 @@ is to make sure your local virtual environment is using Python 2.7::
 
 Note that ``requirements.txt``, used everywhere else, installs
 ``google-cloud-ndb`` by pulling the ``master`` branch from the Git repository
-on GitHub. To deploy to the ``python27`` environment on App Engine, we have
+on GitHub. To deploy to the ``python27`` runtime on App Engine, we have
 to "install" our dependencies locally in the ``lib`` folder, so they can be
 copied to App Engine during the deployment. Pip, however, breaks if you try to
 check out a package from version control while using the ``-t`` option, so for
@@ -101,4 +101,16 @@ Then continue with the deployment::
 
     $ ln -sf app.yaml-2.7 app.yaml
     $ ln -sf appengine_config.py-2.7 appengine_config.py
+    $ gcloud app deploy
+
+Deploy using Legacy NDB
+=======================
+
+You can also deploy to the ``python27`` runtime using the legacy App Engine
+NDB instead of Google Cloud NDB. By setting the ``LEGACY_NDB``
+environment variable to ``True``, you can arrange for the test application to
+use legacy NDB instead of Cloud NDB. The easiest way to do this is just link to
+``app.yaml-legacy``. Assuming you've already run the above steps::
+
+    $ ln -sf app.yaml-legacy app.yaml
     $ gcloud app deploy
