@@ -1,0 +1,11 @@
+indexes:
+- kind: SomeData
+  ancestor: yes
+  properties:
+  - name: flag
+  - name: prop0
+  - name: prop1
+  - name: prop2
+  - name: prop3
+  - name: prop4
+

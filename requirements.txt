@@ -1,0 +1,2 @@
+flask
+-e git+https://github.com/googleapis/python-ndb.git@master#egg=google_cloud_ndb

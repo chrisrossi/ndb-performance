@@ -1,0 +1,6 @@
+*.pyc
+*.swp
+lib
+venv
+app.yaml
+appengine_config.py
