@@ -1,15 +1,30 @@
+from __future__ import print_function
+
+import contextlib
+import cProfile
 import functools
 import logging
 import os
+import pstats
 import random
 import string
+import sys
 import time
+import traceback
 
 from flask import Flask
+
+PY3 = int(sys.version[0]) > 2
+
+if PY3:
+    import io
+else:
+    import StringIO as io
 
 app = Flask(__name__)
 
 LEGACY_NDB = os.environ.get("LEGACY_NDB", "False") == "True"
+PROFILE = os.environ.get("PROFILE_NDB", "False") == "True"
 
 if LEGACY_NDB:
     from google.appengine.ext import ndb
@@ -37,6 +52,35 @@ else:
                 return wsgi_app(environ, start_response)
 
         return middleware
+
+
+@contextlib.contextmanager
+def profile(output):
+    start_time = time.time()
+    if PROFILE:
+        profiler = cProfile.Profile()
+        profiler.enable()
+
+    yield
+
+    if PROFILE:
+        profiler.disable()
+    elapsed = time.time() - start_time
+
+    context = ndb.get_context()
+    rpc_time = get_rpc_time(context)
+    wait_time = get_wait_time(context)
+
+    print("time: {}".format(elapsed), file=output)
+    print("rpc_time: {} ({}%)".format(rpc_time, int(rpc_time * 100 / elapsed)),
+         file=output)
+    print("wait_time: {} ({}%)".format(wait_time, int(wait_time * 100 /
+                                                      elapsed)), file=output)
+
+    if PROFILE:
+        print("\n", file=output)
+        stats = pstats.Stats(profiler, stream=output).sort_stats("time")
+        stats.print_stats(20)
 
 
 app.wsgi_app = ndb_wsgi_middleware(app.wsgi_app)
@@ -116,15 +160,17 @@ def view_output(view):
 
     @functools.wraps(view)
     def wrapper():
-        buf = []
-
-        def output(line):
-            buf.append(line)
-
-        view(output)
-
-        buf.append("")
-        return "\n".join(buf)
+        output = io.StringIO()
+        try:
+            view(output)
+            print("", file=output)
+        except Exception as error:
+            print("", file=output)
+            if hasattr(error, "stack"):
+                print(error.stack, file=output)
+            else:
+                traceback.print_exception(*sys.exc_info(), file=output)
+        return output.getvalue()
 
     return wrapper
 
@@ -132,13 +178,15 @@ def view_output(view):
 @app.route("/test1")
 @view_output
 def test1(output):
-    _time_call(output, _query0().count)
+    with profile(output):
+        result = _query0().count
+        print(str(result), file=output)
 
 
 @app.route("/test2")
 @view_output
 def test2(output):
-    def run_query():
+    with profile(output):
         items = (
             _query0()
             .order(SomeData.prop0)
@@ -152,24 +200,34 @@ def test2(output):
                 ]
             )
         )
-        return len(items)
-
-    _time_call(output, run_query)
+        print(str(len(items)), file=output)
 
 
-def _time_call(output, callback):
-    start_time = time.time()
-    result = callback()
-    elapsed = time.time() - start_time
+class Something(ndb.Model):
+    foo = ndb.StringProperty()
+    bar = ndb.BooleanProperty()
 
-    context = ndb.get_context()
-    rpc_time = get_rpc_time(context)
-    wait_time = get_wait_time(context)
 
-    output(str(result))
-    output("time: {}".format(elapsed))
-    output("rpc_time: {} ({}%)".format(rpc_time, int(rpc_time * 100 / elapsed)))
-    output("wait_time: {} ({}%)".format(wait_time, int(wait_time * 100 / elapsed)))
+query2 = Something.query(
+    Something.foo == "two",
+    Something.bar == True,
+)
+
+
+@app.route("/test3")
+@view_output
+def test3(output):
+    with profile(output):
+        results = query2.fetch(limit=100000)
+        print(str(len(results)), file=output)
+
+
+@app.route("/test4")
+@view_output
+def test4(output):
+    with profile(output):
+        count = query2.count(limit=100000)
+        print(str(count), file=output)
 
 
 @app.route("/cleanup")
